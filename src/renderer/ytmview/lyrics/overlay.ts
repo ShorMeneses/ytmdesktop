@@ -421,14 +421,53 @@ export default class LyricsOverlay {
   }
 
   private isLyricsTabSelected() {
+    const byPageType = !!document.querySelector('ytmusic-tab-renderer[page-type="MUSIC_PAGE_TYPE_TRACK_LYRICS"]');
+    if (byPageType) {
+      this.debugTabDiagnostics("page-type-match", true);
+      return true;
+    }
+
     const tab = this.findLyricsTabButton();
     if (!tab) {
-      return !!document.querySelector("ytmusic-player-page #right-content ytmusic-tab-renderer[selected] ytmusic-description-shelf-renderer");
+      const fallback = !!document.querySelector("ytmusic-player-page #right-content ytmusic-tab-renderer[selected] ytmusic-description-shelf-renderer");
+      this.debugTabDiagnostics("no-tab-button-found", fallback);
+      return fallback;
     }
     const className = tab.className.toString().toLowerCase();
-    return (
-      tab.getAttribute("aria-selected") === "true" || tab.hasAttribute("selected") || className.includes("selected") || className.includes("iron-selected")
+    const selected =
+      tab.getAttribute("aria-selected") === "true" || tab.hasAttribute("selected") || className.includes("selected") || className.includes("iron-selected");
+    this.debugTabDiagnostics("tab-button-found", selected, tab);
+    return selected;
+  }
+
+  private debugTabDiagnostics(path: string, result: boolean, tab?: HTMLElement) {
+    if (!this.debugEnabled) {
+      return;
+    }
+    const allTabs = Array.from(
+      document.querySelectorAll("ytmusic-player-page #right-content tp-yt-paper-tab.tab-header, ytmusic-player-page #right-content [role='tab']")
     );
+    const tabsDump = allTabs
+      .map(el => {
+        const e = el as HTMLElement;
+        return `[text="${e.textContent?.trim()}" class="${e.className}" aria-selected="${e.getAttribute("aria-selected")}" selected-attr="${e.hasAttribute("selected")}"]`;
+      })
+      .join(" ");
+    const shelfAncestors = (() => {
+      const shelf = document.querySelector("ytmusic-player-page ytmusic-description-shelf-renderer");
+      if (!shelf) return "no-shelf";
+      const chain: string[] = [];
+      let el: Element | null = shelf;
+      for (let i = 0; i < 6 && el; i++) {
+        const attrs = Array.from(el.attributes)
+          .map(a => `${a.name}=${a.value}`)
+          .join(",");
+        chain.push(`${el.tagName.toLowerCase()}(${attrs})`);
+        el = el.parentElement;
+      }
+      return chain.join(" < ");
+    })();
+    this.debugLog(`tabdiag path=${path} result=${result} matchedTabText="${tab?.textContent?.trim() ?? ""}" allTabs=${tabsDump} shelfChain=${shelfAncestors}`);
   }
 
   private findLyricsHost(): { host: HTMLElement | null; selector: string } {
